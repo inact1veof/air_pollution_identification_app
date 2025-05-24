@@ -1,0 +1,32 @@
+[tool.poetry]
+name = "DIM"
+version = "0.1"
+description = "Библиотека DSM"
+authors = ["Your Name <you@example.com>"]
+packages = [{ include = "DIM" }]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+numpy = "^1.26.3"
+pandas = "^2.1.4"
+scikit-learn = "^1.3.2"
+tqdm = "^4.66.1"
+padasip = "^1.2.2"
+Sphinx = "^6.0"
+sphinx-rtd-theme = "^1.0.0"
+sphinxcontrib-napoleon = "^0.7"
+sphinx-autobuild = "^2024.4.16"
+furo = "2023.3.23"
+sphinx-autoapi = "3.0"
+influxdb-client = "1.34.0"
+python-dotenv = "1.0.1"
+
+[tool.poetry.extras]
+docs = ["Sphinx", "sphinx-rtd-theme", "sphinxcontrib-napoleon","sphinx-autoapi"]
+
+[tool.poetry.group.dev.dependencies]
+tox = "^4.16.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

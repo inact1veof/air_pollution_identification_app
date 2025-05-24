@@ -1,0 +1,161 @@
+networks:
+  app-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 173.18.0.0/24
+
+services:
+  postgres:
+    image: eco_ai/postgres:12
+    container_name: postgres-container
+    hostname: postgres_docker
+    build:
+      context: ./postgres-docker
+      dockerfile: Dockerfile
+    mem_reservation: "2G"
+    mem_limit: "4G"
+    memswap_limit: "4G"
+    env_file:
+      - windows.env
+    logging:
+      options:
+        max-size: 10m
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - postgres_backup:/var/lib/postgresql/backup
+    ports:
+      - "5532:5432"
+    networks:
+      app-network:
+        ipv4_address: $POSTGRES_HOST
+
+  influxdb:
+    image: eco_ai/influxdb:1.8-alpine
+    container_name: influxdb_container
+    hostname: influxdb_docker
+    build:
+      context: ./influx-docker
+      dockerfile: Dockerfile
+    mem_reservation: "1G"
+    mem_limit: "2G"
+    memswap_limit: "2G"
+    volumes:
+      - influxdb:/var/lib/influxdb
+    ports:
+      - "8086:8086"
+    networks:
+      app-network:
+        ipv4_address: $INFLUXDB_HOST
+
+  grafana:
+    image: eco_ai/grafana:main-ubuntu
+    container_name: grafana_container
+    hostname: grafana_docker
+    build:
+      context: ./grafana-docker
+      dockerfile: Dockerfile
+    mem_reservation: "1G"
+    mem_limit: "2G"
+    memswap_limit: "2G"
+    volumes:
+      - grafana:/var/lib/grafana:rw
+    ports:
+      - "3001:3000"
+    user: grafana
+    depends_on:
+      - influxdb
+    networks:
+      app-network:
+        ipv4_address: $GRAFANA_HOST
+
+  internal-app:
+    image: eco_ai/gral:mono-6.12.0.182_python-3.10
+    container_name: internal-app
+    hostname: internal_app
+    env_file:
+      - windows.env
+    mem_reservation: "4G"
+    mem_limit: "8G"
+    memswap_limit: "16G"
+    volumes:
+      - data:/soft/Data
+      - meteo:/soft/Compute
+      - proj:/soft/Project
+    build:
+      context: ./gral_gramm_w_files5
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    command: uvicorn App.app:app --host 0.0.0.0 --port 5000
+    networks:
+      app-network:
+        ipv4_address: $APP_HOST
+
+  php-eco:
+    image: eco_ai/php:7.4-apache
+    user: "0:0"
+    container_name: php-eco
+    hostname: php-eco
+    extra_hosts:
+      - "influxdb:$INFLUXDB_HOST"
+      - "grafana:$GRAFANA_HOST"
+      - "internal-app:$APP_HOST"
+      - "postgres:$POSTGRES_HOST"
+    env_file:
+      - windows.env
+    build:
+      context: lk
+      dockerfile: Dockerfile
+    mem_reservation: "500M"
+    mem_limit: "1G"
+    memswap_limit: "2G"
+    logging:
+      options:
+        max-size: 10m
+    volumes:
+      - data:/var/www/html/Data
+      - proj:/var/www/html/Proj
+    depends_on:
+      - internal-app
+      - postgres
+      - influxdb
+      - grafana
+    ports:
+      - "8001:80"
+    command: apachectl -D FOREGROUND
+    networks:
+      app-network:
+        ipv4_address: $APACHE_HOST
+volumes:
+  data:
+    name: 'data'
+    driver_opts:
+      o: bind
+      type: none
+      device: $DEVICE_DATA
+  proj:
+    name: 'proj'
+    driver_opts:
+      o: bind
+      type: none
+      device: $DEVICE_PROJECT
+  meteo:
+    name: 'meteo'
+    driver_opts:
+      o: bind
+      type: none
+      device: $DEVICE_METEO
+  influxdb:
+    name: 'influxdb_data'
+  grafana:
+    name: 'grafana_home'
+  postgres_data:
+    name: 'postgres_data'
+  postgres_backup:
+    name: 'postgres_backup'
+    driver_opts:
+      o: bind
+      type: none
+      device: $DEVICE_POSTGRES_BACKUP

@@ -1,0 +1,7 @@
+.dockerignore
+Dockerfile
+*.1
+*.bat
+*.jar
+*.md
+*.yml

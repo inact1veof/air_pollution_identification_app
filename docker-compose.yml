@@ -1,0 +1,169 @@
+services:
+  postgres:
+    image: eco_ai/postgres:12
+    container_name: postgres-container
+    hostname: postgres_docker
+    build:
+      context: ./postgres-docker
+      dockerfile: Dockerfile
+    mem_reservation: "2G"
+    mem_limit: "4G"
+    memswap_limit: "4G"
+    env_file:
+      - .env
+    logging:
+      options:
+        max-size: 10m
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - postgres_backup:/var/lib/postgresql/backup
+    ports:
+      - 5532:5432
+
+  influxdb:
+    image: eco_ai/influxdb:1.8-alpine
+    container_name: influxdb-container
+    hostname: influxdb_docker
+    build:
+      context: ./influx-docker
+      dockerfile: Dockerfile
+    mem_reservation: "1G"
+    mem_limit: "2G"
+    memswap_limit: "2G"
+    volumes:
+      - influxdb:/var/lib/influxdb
+    ports:
+      - 8087:8086
+
+  grafana:
+    image: eco_ai/grafana:main-ubuntu
+    container_name: grafana-container
+    hostname: grafana_docker
+    build:
+      context: ./grafana-docker
+      dockerfile: Dockerfile
+    mem_reservation: "1G"
+    mem_limit: "2G"
+    memswap_limit: "2G"
+    volumes:
+      - grafana:/var/lib/grafana:rw
+    ports:
+      - "3001:3000"
+    user: grafana
+    depends_on:
+      - influxdb
+
+  internal-app:
+    image: eco_ai/gral:mono-6.12.0.182_python-3.10
+    container_name: internal-app
+    hostname: internal_app
+    env_file:
+      - .env
+    mem_reservation: "4G"
+    mem_limit: "8G"
+    memswap_limit: "16G"
+    volumes:
+      - data:/soft/Data
+      - meteo:/soft/Compute
+      - proj:/soft/Project
+    build:
+      context: ./gral_gramm_w_files5
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    command: uvicorn App.app:app --host 0.0.0.0 --port 5000
+
+  php-eco:
+    image: eco_ai/php:7.4-apache
+    user: "0:0"
+    container_name: php-eco
+    hostname: php-eco
+    env_file:
+      - .env
+    build:
+      context: lk
+      dockerfile: Dockerfile
+    mem_reservation: "500M"
+    mem_limit: "1G"
+    memswap_limit: "2G"
+    logging:
+      options:
+        max-size: 10m
+    volumes:
+      - data:/var/www/html/Data
+      - proj:/var/www/html/Proj
+    depends_on:
+      - internal-app
+      - postgres
+      - influxdb
+      - grafana
+    ports:
+      - "8001:80"
+    command: apachectl -D FOREGROUND
+
+  streamlit:
+    image: eco_ai/streamlit:python-12
+    container_name: streamlit
+    hostname: streamlit
+    env_file:
+      - .env
+    build:
+      context: streamlit_service
+      dockerfile: Dockerfile
+    mem_reservation: "2G"
+    mem_limit: "4G"
+    memswap_limit: "8G"
+    logging:
+      options:
+        max-size: 10m
+    volumes:
+      - streamlit_data:/app
+    depends_on:
+      - php-eco
+    ports:
+      - "8501:8501"
+    command: streamlit run web_app/app.py --server.port=8501 --server.address=0.0.0.0
+
+volumes:
+  data:
+    name: 'data'
+    driver_opts:
+      o: bind
+      type: none
+      device: $DEVICE_DATA
+  proj:
+    name: 'proj'
+    driver_opts:
+      o: bind
+      type: bind
+      device: $DEVICE_PROJECT
+  meteo:
+    name: 'meteo'
+    driver_opts:
+      o: bind
+      type: bind
+      device: $DEVICE_METEO
+  influxdb:
+    name: 'influxdb_data'
+  influxdb_backup:
+    name: 'influxdb_backup'
+    driver_opts:
+      o: bind
+      type: bind
+      device: $DEVICE_INFLUXDB_BACKUP
+  grafana:
+    name: 'grafana_home'
+  postgres_data:
+    name: 'postgres_data'
+  postgres_backup:
+    name: 'postgres_backup'
+    driver_opts:
+      o: bind
+      type: bind
+      device: $DEVICE_POSTGRES_BACKUP
+  streamlit_data:
+    name: 'streamlit_data'
+    driver_opts:
+      o: bind
+      type: bind
+      device: $DEVICE_STREAMLIT_DATA
